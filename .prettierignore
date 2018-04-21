@@ -1,0 +1,7 @@
+/docs
+/coverage
+/node_modules
+/.idea
+/.cache
+/src/worker/big-json-viewer.worker.inline.ts
+/dist
