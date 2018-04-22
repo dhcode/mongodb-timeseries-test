@@ -1,12 +1,12 @@
-import { TimeSeriesBucket } from './time-series';
+import { TimeSeriesBucketExtended } from './time-series';
 import { Db } from 'mongodb';
 
 describe('Time Series', function () {
-  const hourBucket = new TimeSeriesBucket('hourBucket', 3600000, [], [
+  const hourBucket = new TimeSeriesBucketExtended('hourBucket', 3600000, [], [
     'value'
   ]);
 
-  const minuteBucket = new TimeSeriesBucket('minuteBucket', 60000, [1000], [
+  const minuteBucket = new TimeSeriesBucketExtended('minuteBucket', 60000, [1000], [
     'value'
   ]);
 

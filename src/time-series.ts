@@ -19,7 +19,7 @@ export const aggregationNames = {
  * Represents a time series bucket based on the idea described there:
  * http://rcardin.github.io/database/mongodb/time-series/2017/01/31/implementing-time-series-in-mongodb.html
  */
-export class TimeSeriesBucket {
+export class TimeSeriesBucketExtended {
 
   /**
    * Collection name
@@ -148,7 +148,7 @@ export class TimeSeriesBucket {
   }
 
   private isPropertyNameAllowed(name) {
-    return !Object.values(aggregationNames).includes(name);
+    return !Object.values(aggregationNames).includes(name) && name !== '_id';
   }
 
   private getAggregationName(aggregationSize) {
