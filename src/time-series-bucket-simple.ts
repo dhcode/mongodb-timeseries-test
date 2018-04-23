@@ -1,5 +1,5 @@
 import { aggregationNames, PropertyValues } from './time-series';
-import { Db } from 'mongodb';
+import { AggregationCursor, Cursor, Db } from 'mongodb';
 
 
 export class TimeSeriesBucketSimple {
@@ -56,6 +56,75 @@ export class TimeSeriesBucketSimple {
     }
 
     return updateResult.modifiedCount === 1;
+  }
+
+  findBuckets(db: Db, from: Date, to: Date): Cursor {
+    const collection = db.collection(this.name);
+    return collection.find({_id: {$gte: from, $lte: to}}).map(doc => {
+      doc.dt = doc._id;
+      delete doc._id;
+      this.properties.forEach(name => doc[name] = doc[name].reduce((sum, curr) => sum + curr, 0));
+      return doc;
+    });
+  }
+
+  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor | Cursor {
+    /*
+    db.getCollection('minuteBucketSimple').aggregate([
+    {$unwind: {path: '$v', includeArrayIndex: 'i_v'}},
+    {$unwind: {path: '$a', includeArrayIndex: 'i_a'}},
+    {$project: {
+        _id: false,
+        dt: {$add: ['$_id', {$multiply: ['$i_v', 1000]}]},
+        v: '$v',
+        a: '$a',
+        same: {$eq: ['$i_v', '$i_a']}
+    }},
+    {$match: {same: true}},
+    {$project: {dt: 1, v: 1, a: 1}}
+])
+
+db.getCollection('minuteBucketSimple').aggregate([
+    {$project: {
+        _id: 1,
+        data: {$zip: {inputs: ['$v', '$a']}}
+    }},
+    {$unwind: {path: '$data', includeArrayIndex: '_i'}},
+    {$project: {
+        _id: false,
+        dt: {$add: ['$_id', {$multiply: ['$_i', 1000]}]},
+        v: {$arrayElemAt: ['$data', 0]},
+        a: {$arrayElemAt: ['$data', 1]}
+    }}
+])
+     */
+    const collection = db.collection(this.name);
+    if (aggregate === this.size || !aggregate) {
+      return this.findBuckets(db, from, to);
+
+    } else if (aggregate === this.aggregation) {
+      const stages = [];
+      stages.push({$match: {_id: {$gte: from, $lte: to}}});
+
+      const inputs = [];
+      const project = {
+        _id: false,
+        dt: {$add: ['$_id', {$multiply: ['$_i', this.aggregation]}]}
+      };
+
+      this.properties.forEach((name, i) => {
+        inputs.push('$' + name);
+        project[name] = {$arrayElemAt: ['$_data', i]};
+      });
+
+      stages.push({$project: {_id: 1, _data: {$zip: {inputs: inputs}}}});
+      stages.push({$unwind: {path: '$_data', includeArrayIndex: '_i'}});
+      stages.push({$project: project});
+
+      return collection.aggregate(stages);
+
+    }
+
   }
 
   getBucketTs(date: Date): Date {
