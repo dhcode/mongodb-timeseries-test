@@ -1,8 +1,9 @@
-import { aggregationNames, PropertyValues } from './time-series';
+import { aggregationNames } from './time-series-bucket-extended';
 import { AggregationCursor, Cursor, Db } from 'mongodb';
+import { PropertyValues, TimeSeriesBucket } from './time-series-bucket.model';
 
 
-export class TimeSeriesBucketSimple {
+export class TimeSeriesBucketSimple implements TimeSeriesBucket {
 
   /**
    * Collection name
@@ -68,62 +69,79 @@ export class TimeSeriesBucketSimple {
     });
   }
 
-  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor | Cursor {
-    /*
-    db.getCollection('minuteBucketSimple').aggregate([
-    {$unwind: {path: '$v', includeArrayIndex: 'i_v'}},
-    {$unwind: {path: '$a', includeArrayIndex: 'i_a'}},
-    {$project: {
-        _id: false,
-        dt: {$add: ['$_id', {$multiply: ['$i_v', 1000]}]},
-        v: '$v',
-        a: '$a',
-        same: {$eq: ['$i_v', '$i_a']}
-    }},
-    {$match: {same: true}},
-    {$project: {dt: 1, v: 1, a: 1}}
-])
-
-db.getCollection('minuteBucketSimple').aggregate([
-    {$project: {
-        _id: 1,
-        data: {$zip: {inputs: ['$v', '$a']}}
-    }},
-    {$unwind: {path: '$data', includeArrayIndex: '_i'}},
-    {$project: {
-        _id: false,
-        dt: {$add: ['$_id', {$multiply: ['$_i', 1000]}]},
-        v: {$arrayElemAt: ['$data', 0]},
-        a: {$arrayElemAt: ['$data', 1]}
-    }}
-])
-     */
+  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor {
     const collection = db.collection(this.name);
-    if (aggregate === this.size || !aggregate) {
-      return this.findBuckets(db, from, to);
 
-    } else if (aggregate === this.aggregation) {
-      const stages = [];
-      stages.push({$match: {_id: {$gte: from, $lte: to}}});
+    const stages = [];
+    stages.push({$match: {_id: {$gte: from, $lte: to}}});
 
-      const inputs = [];
+    const inputs = [];
+    const project = {
+      _id: {$add: ['$_id', {$multiply: ['$_i', this.aggregation]}]}
+    };
+
+    this.properties.forEach((name, i) => {
+      inputs.push('$' + name);
+      project[name] = {$arrayElemAt: ['$_data', i]};
+    });
+
+    stages.push({$project: {_id: 1, _data: {$zip: {inputs: inputs}}}});
+    stages.push({$unwind: {path: '$_data', includeArrayIndex: '_i'}});
+    stages.push({$project: project});
+    // stages.push(stages[0]);
+
+    if (aggregate !== this.aggregation) {
+      aggregate = aggregate || this.size;
+      const epochStart = new Date(0);
       const project = {
-        _id: false,
-        dt: {$add: ['$_id', {$multiply: ['$_i', this.aggregation]}]}
+        _id: {$add: [epochStart, {$multiply: ['$_id', aggregate]}]}
       };
-
-      this.properties.forEach((name, i) => {
-        inputs.push('$' + name);
-        project[name] = {$arrayElemAt: ['$_data', i]};
+      const group = {
+        _id: {$floor: {$divide: [{$subtract: ['$_id', epochStart]}, aggregate]}},
+      };
+      this.properties.forEach(name => {
+        group[name] = {$sum: '$' + name};
+        project[name] = true;
       });
-
-      stages.push({$project: {_id: 1, _data: {$zip: {inputs: inputs}}}});
-      stages.push({$unwind: {path: '$_data', includeArrayIndex: '_i'}});
+      stages.push({
+        $group: group
+      });
       stages.push({$project: project});
+    }
 
-      return collection.aggregate(stages);
+    return collection.aggregate(stages);
+
+  }
+
+  async findAggregates2(db: Db, aggregate: number, from: Date, to: Date): Promise<object[]> {
+    const collection = db.collection(this.name);
+
+    const cursor = collection.find({_id: {$gte: from, $lte: to}});
+    const count = this.size / this.aggregation;
+    let entry;
+    const results = new Map();
+    const emptyResult = id => this.properties.reduce((obj, name) => {
+      obj[name] = 0;
+      return obj;
+    }, {_id: id});
+    while (entry = await cursor.next()) {
+
+      for (let i = 0; i < count; i++) {
+
+        const id = Math.floor((entry._id.getTime() + i * this.aggregation) / aggregate) * aggregate;
+        let result = results.get(id);
+        if (!result) {
+          result = emptyResult(new Date(id));
+          results.set(id, result);
+        }
+        this.properties.forEach(name => {
+          result[name] += entry[name][i];
+        });
+
+      }
 
     }
+    return Array.from(results.values());
 
   }
 

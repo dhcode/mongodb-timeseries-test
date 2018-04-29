@@ -10,11 +10,16 @@
     "declaration": true,
     "paths": {
       "*": [
-        "node_modules/*"
+        "node_modules/*",
+        "src/types/*"
       ]
     }
   },
   "include": [
+    "index.ts",
+    "src/**/*"
+  ],
+  "exclude": [
     "src/**/*.spec.ts"
   ]
 }

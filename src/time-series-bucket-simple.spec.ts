@@ -1,19 +1,19 @@
-import { TimeSeriesBucketExtended } from './time-series';
 import { Db } from 'mongodb';
+import { TimeSeriesBucketSimple } from './time-series-bucket-simple';
 
 describe('Time Series', function () {
-  const hourBucket = new TimeSeriesBucketExtended('hourBucket', 3600000, [], [
+  const hourBucket = new TimeSeriesBucketSimple('hourBucket', 3600000, 60000, [
     'value'
   ]);
 
-  const minuteBucket = new TimeSeriesBucketExtended('minuteBucket', 60000, [1000], [
+  const minuteBucket = new TimeSeriesBucketSimple('minuteBucket', 60000, 1000, [
     'value'
   ]);
 
   it('should produce zero bucket', function () {
     const dt = new Date('2018-04-21T00:00:00Z');
     const zeroBucket = hourBucket.getZeroBucket(dt);
-    expect(zeroBucket).toEqual({_id: dt, value: 0});
+    expect(zeroBucket).toEqual({_id: dt, value: [0]});
   });
 
   it('should produce zero bucket with aggregate', function () {

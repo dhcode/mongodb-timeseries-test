@@ -1,8 +1,5 @@
 import { AggregationCursor, Cursor, Db } from 'mongodb';
-
-export interface PropertyValues {
-  [name: string]: number;
-}
+import { PropertyValues, TimeSeriesBucket } from './time-series-bucket.model';
 
 export const aggregationNames = {
   1: 'ms', // Milliseconds
@@ -19,7 +16,7 @@ export const aggregationNames = {
  * Represents a time series bucket based on the idea described there:
  * http://rcardin.github.io/database/mongodb/time-series/2017/01/31/implementing-time-series-in-mongodb.html
  */
-export class TimeSeriesBucketExtended {
+export class TimeSeriesBucketExtended implements TimeSeriesBucket {
 
   /**
    * Collection name
@@ -86,21 +83,24 @@ export class TimeSeriesBucketExtended {
     if (this.aggregations.length) {
       project[this.getAggregationName(this.aggregations[0])] = false;
     }
-    return collection.find({_id: {$gte: from, $lte: to}}).map(doc => {
-      doc.dt = doc._id;
-      delete doc._id;
-      return doc;
-    }).project(project);
+    return collection.find({_id: {$gte: from, $lte: to}}).project(project);
   }
 
-  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor | Cursor {
+  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor {
     const collection = db.collection(this.name);
+    const stages = [];
+    stages.push({$match: {_id: {$gte: from, $lte: to}}});
+
     if (aggregate === this.size || !aggregate) {
-      return this.findBuckets(db, from, to);
+      const project = {};
+      if (this.aggregations.length) {
+        project[this.getAggregationName(this.aggregations[0])] = false;
+      }
+      stages.push({$project: project});
+      return collection.aggregate(stages);
 
     } else if (this.aggregations.includes(aggregate)) {
-      const stages = [];
-      stages.push({$match: {_id: {$gte: from, $lte: to}}});
+
       let path = [];
       this.aggregations
         .filter(aggregationSize => aggregationSize >= aggregate)
