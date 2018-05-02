@@ -69,7 +69,7 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
     });
   }
 
-  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor {
+  findAggregates(db: Db, aggregate: number, from: Date, to: Date): Promise<object[]> {
     const collection = db.collection(this.name);
 
     const stages = [];
@@ -109,14 +109,17 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
       stages.push({$project: project});
     }
 
-    return collection.aggregate(stages);
+    return collection.aggregate(stages).toArray();
 
   }
 
   async findAggregates2(db: Db, aggregate: number, from: Date, to: Date): Promise<object[]> {
     const collection = db.collection(this.name);
 
-    const cursor = collection.find({_id: {$gte: from, $lte: to}});
+    const startTime = new Date().getTime();
+    const expect = Math.ceil((to.getTime() - from.getTime()) / this.size);
+
+    const cursor = collection.find({_id: {$gte: from, $lte: to}}).batchSize(expect);
     const count = this.size / this.aggregation;
     let entry;
     const results = new Map();
@@ -125,6 +128,7 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
       return obj;
     }, {_id: id});
     while (entry = await cursor.next()) {
+      // console.log('recv cursor', new Date().getTime() - startTime);
 
       for (let i = 0; i < count; i++) {
 

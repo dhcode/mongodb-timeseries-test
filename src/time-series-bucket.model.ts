@@ -20,6 +20,6 @@ export interface TimeSeriesBucket {
 
   findBuckets(db: Db, from: Date, to: Date): Cursor;
 
-  findAggregates(db: Db, aggregate: number, from: Date, to: Date): AggregationCursor;
+  findAggregates(db: Db, aggregate: number, from: Date, to: Date): Promise<object[]>;
 
 }
