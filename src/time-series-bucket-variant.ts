@@ -1,9 +1,8 @@
-import { aggregationNames } from './time-series-bucket-extended';
-import { AggregationCursor, Cursor, Db } from 'mongodb';
 import { PropertyValues, TimeSeriesBucket } from './time-series-bucket.model';
+import { aggregationNames } from './time-series-bucket-extended';
+import { Cursor, Db } from 'mongodb';
 
-
-export class TimeSeriesBucketSimple implements TimeSeriesBucket {
+export class TimeSeriesBucketVariant implements TimeSeriesBucket {
 
   /**
    * Collection name
@@ -17,7 +16,7 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
   size: number;
 
   /**
-   * Aggregation levels to add in each bucket
+   * Aggregation level to add in each bucket
    * E.g. 1000 for seconds
    */
   aggregation = 1000;
@@ -75,6 +74,35 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
     const stages = [];
     stages.push({$match: {_id: {$gte: from, $lt: to}}});
 
+    if (aggregate >= this.size) {
+      const project = {
+        _id: true,
+      };
+      this.properties.forEach(name => {
+        project[name] = '$_s.' + name;
+      });
+      stages.push({$project: project});
+      if (aggregate > this.size) {
+        const epochStart = new Date(0);
+        const project = {
+          _id: {$add: [epochStart, {$multiply: ['$_id', aggregate]}]}
+        };
+        const group = {
+          _id: {$floor: {$divide: [{$subtract: ['$_id', epochStart]}, aggregate]}},
+        };
+        this.properties.forEach(name => {
+          group[name] = {$sum: '$' + name};
+          project[name] = true;
+        });
+        stages.push({
+          $group: group
+        });
+        stages.push({$project: project});
+      }
+      return collection.aggregate(stages).toArray();
+    }
+
+
     const inputs = [];
     const project = {
       _id: {$add: ['$_id', {$multiply: ['$_i', this.aggregation]}]}
@@ -119,7 +147,7 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
     const startTime = new Date().getTime();
     const expect = Math.ceil((to.getTime() - from.getTime()) / this.size);
 
-    const cursor = collection.find({_id: {$gte: from, $lt: to}}).batchSize(expect);
+    const cursor = collection.find({_id: {$gte: from, $lte: to}}).batchSize(expect);
     const count = this.size / this.aggregation;
     let entry;
     const results = new Map();
@@ -158,6 +186,7 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
 
     return {
       _id: bucketTs,
+      ...this.getZeroSumProperties(),
       ...this.getZeroProperties()
     };
   }
@@ -172,7 +201,10 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
     const baseTs = Math.floor(ts / this.size) * this.size;
     const index = Math.floor((ts - baseTs) / this.aggregation);
 
-    names.forEach(name => update[name + '.' + index] = data[name]);
+    names.forEach(name => {
+      update['_s.' + name] = data[name];
+      update[name + '.' + index] = data[name];
+    });
     return {
       $inc: update
     };
@@ -182,6 +214,12 @@ export class TimeSeriesBucketSimple implements TimeSeriesBucket {
     const data = {};
     const count = this.size / this.aggregation;
     this.properties.forEach(name => data[name] = new Array(count).fill(0));
+    return data;
+  }
+
+  private getZeroSumProperties() {
+    const data = {_s: {}};
+    this.properties.forEach(name => data._s[name] = 0);
     return data;
   }
 

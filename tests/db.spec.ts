@@ -3,6 +3,7 @@ import { TimeSeriesBucketSimple } from '../src/time-series-bucket-simple';
 import * as fs from 'fs';
 import { showBytes } from '../src/helpers';
 import { Logger } from 'mongodb';
+import { TimeSeriesBucketVariant } from '../src/time-series-bucket-variant';
 
 const protocol = fs.createWriteStream('protocol.log', {flags: 'a'});
 
@@ -14,15 +15,11 @@ describe('DB Test', function () {
 
   const hourBucket = new TimeSeriesBucketSimple('hourBucketSimple', 3600000, 1000, ['v']);
   const minuteBucket = new TimeSeriesBucketSimple('minuteBucketSimple', 60000, 1000, ['v']);
+  const minuteBucketV = new TimeSeriesBucketVariant('minuteBucketVariant', 60000, 1000, ['v']);
 
 
   beforeAll(async function () {
     db = await getMongoDb();
-    const startTime = new Date().getTime();
-    // warm up
-    await db.collection(hourBucket.name).find({}).limit(1);
-    // await db.collection(minuteBucket.name).find({}).limit(1);
-    console.log('beforeAll simple find', new Date().getTime() - startTime);
   });
 
   afterAll(async function () {
@@ -46,13 +43,48 @@ describe('DB Test', function () {
   it('should query hour bucket last 30 days in hours', async function () {
     // Logger.setLevel('debug');
     await queryTest('hour bucket 30d hour', db, hourBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
-    // await queryTest2('hour bucket 30d hour', db, hourBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
+    await queryTest2('hour bucket 30d hour', db, hourBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
   }, 60000);
 
+
+  // minute bucket simple
   it('should insert minute bucket', async function () {
     await insertData('minute bucket', db, minuteBucket, startTs, endTs, 30000);
+  }, 600000);
 
+  it('should query minute bucket last 24h in seconds', async function () {
+    await queryTest('minute bucket 24h sec', db, minuteBucket, new Date(endTs.getTime() - 86400000), endTs, 1000);
+    await queryTest2('minute bucket 24h sec2', db, minuteBucket, new Date(endTs.getTime() - 86400000), endTs, 1000);
   });
+
+  it('should query minute bucket last 48h in minutes', async function () {
+    await queryTest('minute bucket 48h min', db, minuteBucket, new Date(endTs.getTime() - 86400000 * 2), endTs, 60000);
+    await queryTest2('minute bucket 48h sec2', db, minuteBucket, new Date(endTs.getTime() - 86400000 * 2), endTs, 60000);
+  });
+
+  it('should query minute bucket last 30 days in hours', async function () {
+    // Logger.setLevel('debug');
+    await queryTest('minute bucket 30d hour', db, minuteBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
+    await queryTest2('minute bucket 30d hour', db, minuteBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
+  }, 60000);
+
+  // minute bucket V
+  it('should insert minute bucketV', async function () {
+    await insertData('minute bucketV', db, minuteBucketV, startTs, endTs, 30000);
+  }, 600000);
+
+  it('should query minute bucketV last 24h in seconds', async function () {
+    await queryTest('minute bucketV 24h sec', db, minuteBucketV, new Date(endTs.getTime() - 86400000), endTs, 1000);
+  });
+
+  it('should query minute bucketV last 48h in minutes', async function () {
+    await queryTest('minute bucketV 48h min', db, minuteBucketV, new Date(endTs.getTime() - 86400000 * 2), endTs, 60000);
+  });
+
+  it('should query minute bucketV last 30 days in hours', async function () {
+    // Logger.setLevel('debug');
+    await queryTest('minute bucketV 30d hour', db, minuteBucketV, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
+  }, 60000);
 
 
 });
