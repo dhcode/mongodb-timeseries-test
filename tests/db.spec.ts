@@ -2,7 +2,6 @@ import { getMongoDb } from '../src/mongodb';
 import { TimeSeriesBucketSimple } from '../src/time-series-bucket-simple';
 import * as fs from 'fs';
 import { showBytes } from '../src/helpers';
-import { Logger } from 'mongodb';
 import { TimeSeriesBucketVariant } from '../src/time-series-bucket-variant';
 
 const protocol = fs.createWriteStream('protocol.log', {flags: 'a'});
@@ -15,6 +14,7 @@ describe('DB Test', function () {
 
   const hourBucket = new TimeSeriesBucketSimple('hourBucketSimple', 3600000, 1000, ['v']);
   const minuteBucket = new TimeSeriesBucketSimple('minuteBucketSimple', 60000, 1000, ['v']);
+  const hourBucketV = new TimeSeriesBucketVariant('hourBucketVariant', 3600000, 1000, ['v']);
   const minuteBucketV = new TimeSeriesBucketVariant('minuteBucketVariant', 60000, 1000, ['v']);
 
 
@@ -67,6 +67,26 @@ describe('DB Test', function () {
     await queryTest('minute bucket 30d hour', db, minuteBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
     await queryTest2('minute bucket 30d hour', db, minuteBucket, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
   }, 60000);
+
+
+  // hour bucket V
+  it('should insert hour bucketV', async function () {
+    await insertData('hour bucketV', db, hourBucketV, startTs, endTs, 30000);
+  }, 600000);
+
+  it('should query hour bucketV last 24h in seconds', async function () {
+    await queryTest('hour bucketV 24h sec', db, hourBucketV, new Date(endTs.getTime() - 86400000), endTs, 1000);
+  });
+
+  it('should query hour bucketV last 48h in minutes', async function () {
+    await queryTest('hour bucketV 48h min', db, hourBucketV, new Date(endTs.getTime() - 86400000 * 2), endTs, 60000);
+  });
+
+  it('should query hour bucketV last 30 days in hours', async function () {
+    // Logger.setLevel('debug');
+    await queryTest('hour bucketV 30d hour', db, hourBucketV, new Date(endTs.getTime() - 86400000 * 30), endTs, 3600000);
+  }, 60000);
+
 
   // minute bucket V
   it('should insert minute bucketV', async function () {

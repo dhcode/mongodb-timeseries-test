@@ -1,5 +1,5 @@
 import { aggregationNames } from './time-series-bucket-extended';
-import { AggregationCursor, Cursor, Db } from 'mongodb';
+import { Cursor, Db } from 'mongodb';
 import { PropertyValues, TimeSeriesBucket } from './time-series-bucket.model';
 
 

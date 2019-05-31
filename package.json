@@ -4,7 +4,7 @@
   "description": "Tests timeseries in MongoDB",
   "main": "index.js",
   "scripts": {
-    "test1": "ts-node src/test.ts",
+    "test1": "jest tests/db.spec.ts",
     "mongodb": "mongod --dbpath ./data"
   },
   "author": "Dominik Herbst",
